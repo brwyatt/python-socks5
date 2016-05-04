@@ -5,6 +5,8 @@ import socket
 from threading import Thread
 import sys
 import signal
+import subprocess
+import os
 
 SOCKTIMEOUT = 5  # 客户端连接超时(秒)
 RESENDTIMEOUT = 300  # 转发超时(秒)
@@ -88,6 +90,55 @@ class SocketTransform(Thread):
         Resender(self.dest, self.sock).start()
 
 
+class SSH():
+    def __init__(self, sshHost):
+        self.sshHost = sshHost
+
+    def connect(self, dest):
+        self.prc = subprocess.Popen(
+            ['ssh', self.sshHost, "nc %s %s" % (dest[0], dest[1])],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE)
+
+    def settimeout(self, timeout):
+        pass
+
+    def recv(self, readBytes):
+        return os.read(self.prc.stdout.fileno(), readBytes)
+
+    def sendall(self, data):
+        return self.prc.stdin.write(data)
+
+    def close(self):
+        getLogger().write("CLOSE SSH")
+        return self.prc.kill()
+
+
+class SSHTransform(SocketTransform):
+    def __init__(self, src, dest_ip, dest_port, sshHost, bind=False):
+        self.sshHost = sshHost
+        SocketTransform.__init__(self, src, dest_ip, dest_port, bind)
+
+    def run(self):
+        try:
+            self.resent()
+        except Exception as e:
+            getLogger().write("Error on SSHTransform %s" %
+                              (e.message,), Log.ERROR)
+            self.sock.close()
+            self.dest.close()
+
+    def resent(self):
+        self.sock = self.src
+        self.dest = SSH(self.sshHost)
+        self.dest.connect((self.dest_ip, self.dest_port))
+        getLogger().write("Starting SSH Resending")
+        self.sock.settimeout(RESENDTIMEOUT)
+        self.dest.settimeout(RESENDTIMEOUT)
+        Resender(self.sock, self.dest).start()
+        Resender(self.dest, self.sock).start()
+
+
 class Resender(Thread):
 
     def __init__(self, src, dest):
@@ -114,7 +165,7 @@ class Resender(Thread):
         getLogger().write("Client quit normally\n")
 
 
-def create_server(ip, port):
+def create_server(ip, port, sshHost=None):
     transformer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     transformer.bind((ip, port))
     signal.signal(signal.SIGTERM, OnExit(transformer).exit)
@@ -168,7 +219,11 @@ def create_server(ip, port):
                 sock.sendall(VER + SUCCESS + "\x00" + "\x01" + server_ip +
                              chr(port / 256) + chr(port % 256))
                 getLogger().write("Starting transform thread")
-                SocketTransform(server_sock, dst_addr, dst_port).start()
+                if sshHost is not None:
+                    SSHTransform(server_sock, dst_addr, dst_port,
+                                 sshHost).start()
+                else:
+                    SocketTransform(server_sock, dst_addr, dst_port).start()
             else:  # Unspport Command
                 sock.sendall(
                     VER + UNSPPORTCMD + server_ip + chr(port / 256) +
@@ -192,6 +247,7 @@ if __name__ == '__main__':
     try:
         ip = "0.0.0.0"
         port = 8080
-        create_server(ip, port)
+        sshHost = None
+        create_server(ip, port, sshHost)
     except Exception as e:
         getLogger().write("Error on create server:"+e.message, Log.ERROR)
