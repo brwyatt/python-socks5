@@ -115,7 +115,8 @@ def create_server(ip,port):
         sock.settimeout(SOCKTIMEOUT)
         getLogger().write("Got one client connection")
         try:
-            ver,nmethods,methods=(sock.recv(1),sock.recv(1),sock.recv(1))
+            ver,nmethods=(sock.recv(1),sock.recv(1))
+            methods=sock.recv(ord(nmethods[0]))
             sock.sendall(VER+METHOD)
             ver,cmd,rsv,atyp=(sock.recv(1),sock.recv(1),sock.recv(1),sock.recv(1))
             dst_addr=None
