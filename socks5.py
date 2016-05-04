@@ -60,7 +60,7 @@ class SocketTransform(Thread):
     def run(self):
         try:
             self.resend()
-        except Exception,e:
+        except Exception as e:
             getLogger().write("Error on SocketTransform %s" %(e.message,),Log.ERROR)
             self.sock.close()
             self.dest.close()
@@ -90,7 +90,7 @@ class Resender(Thread):
     def run(self):
         try:
             self.resend(self.src,self.dest)
-        except Exception,e:
+        except Exception as e:
             getLogger().write("Connection lost %s" %(e.message,),Log.ERROR)
             self.src.close()
             self.dest.close()
@@ -153,7 +153,7 @@ def create_server(ip,port):
             else:#Unspport Command
                 sock.sendall(VER+UNSPPORTCMD+server_ip+chr(port/256)+chr(port%256))
                 sock.close()
-        except Exception,e:
+        except Exception as e:
             getLogger().write("Error on starting transform:"+e.message,Log.ERROR)
             sock.close()
 
@@ -170,6 +170,6 @@ if __name__=='__main__':
         ip="0.0.0.0"
         port=8080
         create_server(ip,port)
-    except Exception,e:
+    except Exception as e:
         getLogger().write("Error on create server:"+e.message,Log.ERROR)
 
