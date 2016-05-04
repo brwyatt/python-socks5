@@ -110,6 +110,7 @@ def create_server(ip,port):
     transformer.bind((ip,port))
     signal.signal(signal.SIGTERM,OnExit(transformer).exit)
     transformer.listen(1000)
+    getLogger().write("Server listening on %s:%s" % (ip,port))
     while True:
         sock,addr_info=transformer.accept()
         sock.settimeout(SOCKTIMEOUT)
